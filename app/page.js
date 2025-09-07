@@ -1,103 +1,163 @@
-import Image from "next/image";
+// app/page.js
+'use client';
+
+import { useState, useEffect } from 'react';
+import { collection, addDoc, getDocs, deleteDoc, updateDoc, doc, orderBy, query, serverTimestamp } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import BlogCard from '../components/BlogCard';
+import BlogForm from '../components/BlogForm';
+import Link from 'next/link';
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.js
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [posts, setPosts] = useState([]);
+  const [editingPost, setEditingPost] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  // Fetch posts from Firebase
+  const fetchPosts = async () => {
+    try {
+      const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const postsData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setPosts(postsData);
+    } catch (error) {
+      console.error('Error fetching posts:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+
+  // Create or update post
+  const handleSubmit = async (postData) => {
+    try {
+      if (editingPost) {
+        // Update existing post
+        await updateDoc(doc(db, 'posts', editingPost.id), {
+          ...postData,
+          updatedAt: serverTimestamp()
+        });
+        setEditingPost(null);
+      } else {
+        // Create new post
+        await addDoc(collection(db, 'posts'), {
+          ...postData,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      }
+      fetchPosts();
+    } catch (error) {
+      console.error('Error saving post:', error);
+      alert('Error saving post. Please try again.');
+    }
+  };
+
+  // Delete post
+  const handleDelete = async (postId) => {
+    if (window.confirm('Are you sure you want to delete this post?')) {
+      try {
+        await deleteDoc(doc(db, 'posts', postId));
+        fetchPosts();
+      } catch (error) {
+        console.error('Error deleting post:', error);
+        alert('Error deleting post. Please try again.');
+      }
+    }
+  };
+
+  // Edit post
+  const handleEdit = (post) => {
+    setEditingPost(post);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Cancel editing
+  const handleCancel = () => {
+    setEditingPost(null);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-xl text-gray-300">Loading...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-900">
+      {/* Navigation */}
+      <nav className="bg-gray-800 border-b border-gray-700">
+        <div className="max-w-4xl mx-auto px-4 py-4">
+          <div className="flex justify-between items-center">
+            <Link href="/" className="text-2xl font-bold text-white hover:text-blue-400">
+              My Blog
+            </Link>
+            <div className="flex gap-4">
+              <Link href="/" className="text-gray-300 hover:text-white px-3 py-2">
+                Home
+              </Link>
+              <Link href="/blogs" className="text-gray-300 hover:text-white px-3 py-2">
+                All Blogs
+              </Link>
+              <Link href="/auth" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md">
+                Login
+              </Link>
+            </div>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+      </nav>
+
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-white mb-2">Welcome to My Blog</h1>
+          <p className="text-gray-400">Share your thoughts with the world</p>
+        </div>
+
+        {/* Blog Form */}
+        <div className="mb-8">
+          <BlogForm
+            onSubmit={handleSubmit}
+            editingPost={editingPost}
+            onCancel={handleCancel}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        </div>
+
+        {/* Recent Posts Preview */}
+        <div className="mb-8">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-semibold text-white">Recent Posts</h2>
+            <Link href="/blogs" className="text-blue-400 hover:text-blue-300">
+              View All Posts →
+            </Link>
+          </div>
+          
+          <div className="space-y-6">
+            {posts.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-400 text-lg">No blog posts yet. Create your first post above!</p>
+              </div>
+            ) : (
+              posts.slice(0, 3).map(post => (
+                <BlogCard
+                  key={post.id}
+                  post={post}
+                  onDelete={handleDelete}
+                  onEdit={handleEdit}
+                />
+              ))
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
